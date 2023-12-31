@@ -61,11 +61,14 @@ fn convert_input(i: &String, format: &Option<FileFormat>) -> Vec<u8> {
 
 /// Get protobuf messageDescriptor from protobuf file for specified probuf message
 fn get_message_descriptor(protofile: &String, prototype: &String, include_path: &Option<String>) -> Option<MessageDescriptor> {
-    let mut includes = ["./".to_string()].to_vec();
-    if include_path.is_some() {
+
+    let includes = if include_path.is_some() {
         let p: String = include_path.as_ref().unwrap().clone();
-        includes = p.split(":").into_iter().map(String::from).collect();
-    }
+        p.split(":").into_iter().map(String::from).collect()
+    } else {
+        ["./".to_string()].to_vec()
+    };
+
     let mut file_descriptor_protos = protobuf_parse::Parser::new()    
     .pure()
     .includes(includes)
