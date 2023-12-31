@@ -50,3 +50,10 @@ Store output json in xx.json.
 ```
 pbtool decode test/a.proto .M1 @a.hex -i test -f hex -o xx.json
 ```
+
+Decode using protobuf defintion in test/a.proto type M1. Use input data from cli argument (CAoSA2FiYxoDCM0C) in base64 format
+Read additional protobuf dependencies from directory test.
+
+```
+pbtool decode test/a.proto .M1 CAoSA2FiYxoDCM0C  -i test -f base64
+```

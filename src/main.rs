@@ -60,7 +60,7 @@ fn convert_input(i: &String, format: &Option<FileFormat>) -> Vec<u8> {
 
 
 /// Get protobuf messageDescriptor from protobuf file for specified probuf message
-fn get_message_descriptor(protofile: &String, prototype: &String, include_path: &Option<String>) -> MessageDescriptor {
+fn get_message_descriptor(protofile: &String, prototype: &String, include_path: &Option<String>) -> Option<MessageDescriptor> {
     let mut includes = ["./".to_string()].to_vec();
     if include_path.is_some() {
         let p: String = include_path.as_ref().unwrap().clone();
@@ -84,8 +84,7 @@ fn get_message_descriptor(protofile: &String, prototype: &String, include_path: 
     let file_descriptor: FileDescriptor = FileDescriptor::new_dynamic(file_descriptor_proto, &deps).unwrap();
 
     let descriptor = file_descriptor
-        .message_by_full_name(prototype)
-        .unwrap();
+        .message_by_full_name(prototype);
     return descriptor
 }
 
@@ -93,9 +92,14 @@ fn get_message_descriptor(protofile: &String, prototype: &String, include_path: 
 fn encode(protofile: &String, prototype: &String, jsonfile: &String, format: &Option<FileFormat>, outfile: &Option<String>, include_path: &Option<String>) {
     let json = fs::read_to_string(jsonfile).unwrap();
 
-    let m1_descriptor = get_message_descriptor(protofile, prototype, include_path);
+    let descriptor_opt = get_message_descriptor(protofile, prototype, include_path);
+    if descriptor_opt.is_none() {
+        println!("can't find type {} in file {}", prototype, protofile);
+        return
+    }
+    let descriptor = descriptor_opt.unwrap();
 
-    let msg = protobuf_json_mapping::parse_dyn_from_str(&m1_descriptor, &json).unwrap();
+    let msg = protobuf_json_mapping::parse_dyn_from_str(&descriptor, &json).unwrap();
     let bytes = msg.write_to_bytes_dyn().unwrap();
 
     let v = convert_output(&bytes, format);
@@ -113,7 +117,12 @@ fn encode(protofile: &String, prototype: &String, jsonfile: &String, format: &Op
 
 /// decode protobuf binary data and present them in json format
 fn decode(protofile: &String, prototype: &String, data: &String, format: &Option<FileFormat>, out_file: &Option<String>, include_path: &Option<String>) {
-    let descriptor = get_message_descriptor(protofile, prototype, include_path);
+    let descriptor_opt = get_message_descriptor(protofile, prototype, include_path);
+    if descriptor_opt.is_none() {
+        println!("can't find type {} in file {}", prototype, protofile);
+        return
+    }
+    let descriptor = descriptor_opt.unwrap();
     let dataraw = convert_input(data, format);
     let pres = descriptor.parse_from_bytes(dataraw.as_ref());
     let jres = protobuf_json_mapping::print_to_string(pres.unwrap().as_ref());
@@ -193,7 +202,6 @@ fn main() {
             protofile,
             prototype,
             json } => {
-                println!("encode {} {} {}", protofile, prototype, json);
                 encode(protofile, prototype, json, file_format, output_file, include_path);
             },
         Commands::Decode {
