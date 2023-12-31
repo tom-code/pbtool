@@ -1,6 +1,10 @@
 
 Utility to encode/decode protobuf data into human readable format (json).
 
+
+![build](https://github.com/tom-code/pbtool/actions/workflows/rust.yml/badge.svg)
+
+
 Example use:
 ```
 get help:
