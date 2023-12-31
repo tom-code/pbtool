@@ -1,0 +1,9 @@
+syntax = 'proto3';
+
+import "part2.proto";
+
+message M1 {
+  int32 aaa = 1;
+  string bbb = 2;
+  TestType tt = 3;
+}

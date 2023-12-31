@@ -1,0 +1,9 @@
+
+syntax = "proto3";
+
+import "part3.proto";
+
+message TestType {
+    uint32 num = 1;
+    TestType2 zz = 2;
+} 

@@ -1,0 +1,6 @@
+
+syntax = "proto3";
+
+message TestType2 {
+    uint32 num2 = 1;
+} 
