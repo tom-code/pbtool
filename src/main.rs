@@ -1,6 +1,4 @@
-
 use std::fs;
-
 
 use clap::{Parser, Subcommand, ValueEnum};
 
@@ -10,9 +8,8 @@ use protobuf::reflect::MessageDescriptor;
 
 #[derive(Debug)]
 enum PError {
-    Str(String)
+    Str(String),
 }
-
 
 impl std::fmt::Display for PError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -23,32 +20,34 @@ impl std::fmt::Display for PError {
 }
 impl std::error::Error for PError {}
 
-
 /// Convert output protobuf binary stream according format specified by FileFormat parameter
 fn convert_output(i: &Vec<u8>, format: &Option<FileFormat>) -> Result<Vec<u8>, PError> {
     match format {
         Some(f) if (*f == FileFormat::Binary) => Ok(i.clone()),
         Some(f) if (*f == FileFormat::Base64) => {
-            let mut buffer = vec![0u8; i.len()*4];
+            let mut buffer = vec![0u8; i.len() * 4];
             match binascii::b64encode(&i, buffer.as_mut()) {
                 Ok(res) => return Ok(res.to_vec()),
-                Err(err) => return Err(PError::Str(format!("b64 encode failed {:?}", err)))
+                Err(err) => return Err(PError::Str(format!("b64 encode failed {:?}", err))),
             };
         }
         _ => {
-            let mut buffer =  vec![0u8; i.len()*2];
+            let mut buffer = vec![0u8; i.len() * 2];
             match binascii::bin2hex(&i, buffer.as_mut()) {
                 Ok(res) => return Ok(res.to_vec()),
-                Err(err) => return Err(PError::Str(format!("hex encode failed {:?}", err)))
+                Err(err) => return Err(PError::Str(format!("hex encode failed {:?}", err))),
             }
         }
     }
 }
 
 /// Convert input protobuf binary stream according format specified by FileFormat parameter
-fn convert_input(i: &String, format: &Option<FileFormat>) -> Result<Vec<u8>, Box<dyn std::error::Error>>  {
+fn convert_input(
+    i: &String,
+    format: &Option<FileFormat>,
+) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     if i.is_empty() {
-        return Err(Box::new(PError::Str("nothing to decode".to_string())))
+        return Err(Box::new(PError::Str("nothing to decode".to_string())));
     }
 
     let input = if i.starts_with("@") {
@@ -60,31 +59,44 @@ fn convert_input(i: &String, format: &Option<FileFormat>) -> Result<Vec<u8>, Box
     let form = match format {
         Some(f) => f,
         None if i.starts_with("@") => &FileFormat::Binary,
-        None  => &FileFormat::Hex,
+        None => &FileFormat::Hex,
     };
 
     match form {
         FileFormat::Binary => return Ok(input),
         FileFormat::Hex => {
-            let mut buffer =  vec![0u8; input.len()/2];
+            let mut buffer = vec![0u8; input.len() / 2];
             match binascii::hex2bin(&input, buffer.as_mut()) {
                 Ok(res) => return Ok(res.to_vec()),
-                Err(err) => return Err(Box::new(PError::Str(format!("hex decode failed {:?}", err))))
+                Err(err) => {
+                    return Err(Box::new(PError::Str(format!(
+                        "hex decode failed {:?}",
+                        err
+                    ))))
+                }
             }
         }
         FileFormat::Base64 => {
-            let mut buffer =  vec![0u8; input.len()];
+            let mut buffer = vec![0u8; input.len()];
             match binascii::b64decode(&input, buffer.as_mut()) {
                 Ok(res) => return Ok(res.to_vec()),
-                Err(err) => return Err(Box::new(PError::Str(format!("b64 decode failed {:?}", err))))
+                Err(err) => {
+                    return Err(Box::new(PError::Str(format!(
+                        "b64 decode failed {:?}",
+                        err
+                    ))))
+                }
             }
         }
     }
 }
 
 /// Get protobuf messageDescriptor from protobuf file for specified probuf message
-fn get_message_descriptor(protofile: &String, prototype: &String, include_path: &Option<String>) -> Result<MessageDescriptor, Box<dyn std::error::Error>> {
-
+fn get_message_descriptor(
+    protofile: &String,
+    prototype: &String,
+    include_path: &Option<String>,
+) -> Result<MessageDescriptor, Box<dyn std::error::Error>> {
     let includes = if include_path.is_some() {
         let p: String = include_path.as_ref().unwrap().clone();
         p.split(":").into_iter().map(String::from).collect()
@@ -92,15 +104,15 @@ fn get_message_descriptor(protofile: &String, prototype: &String, include_path: 
         vec!["./".to_string()]
     };
 
-    let file_descriptor_protos_parsed = protobuf_parse::Parser::new()    
-    .pure()
-    .includes(includes)
-    .input(protofile)
-    .parse_and_typecheck()?;
+    let file_descriptor_protos_parsed = protobuf_parse::Parser::new()
+        .pure()
+        .includes(includes)
+        .input(protofile)
+        .parse_and_typecheck()?;
     let mut file_descriptor_protos = file_descriptor_protos_parsed.file_descriptors;
 
     let mut deps = Vec::new();
-    for _ in 0..file_descriptor_protos.len()-1 {
+    for _ in 0..file_descriptor_protos.len() - 1 {
         let dep_opt = FileDescriptor::new_dynamic(file_descriptor_protos.remove(0), &deps);
         if let Ok(dep) = dep_opt {
             deps.push(dep)
@@ -108,40 +120,62 @@ fn get_message_descriptor(protofile: &String, prototype: &String, include_path: 
     }
 
     let file_descriptor_proto: FileDescriptorProto = file_descriptor_protos.pop().unwrap();
-    let file_descriptor = FileDescriptor::new_dynamic(file_descriptor_proto, &deps)?;    
+    let file_descriptor = FileDescriptor::new_dynamic(file_descriptor_proto, &deps)?;
 
     if let Some(descriptor) = file_descriptor.message_by_full_name(prototype) {
-        return Ok(descriptor)
+        return Ok(descriptor);
     } else {
-        return Err(Box::new(PError::Str(format!("can't find type {}", prototype))))
+        return Err(Box::new(PError::Str(format!(
+            "can't find type {}",
+            prototype
+        ))));
     }
 }
 
-
-fn encode_internal(protofile: &String, prototype: &String, jsonfile: &String, include_path: &Option<String>) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+fn encode_internal(
+    protofile: &String,
+    prototype: &String,
+    jsonfile: &String,
+    include_path: &Option<String>,
+) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
     let json = fs::read_to_string(jsonfile)?;
     let descriptor = get_message_descriptor(protofile, prototype, include_path)?;
     let msg = protobuf_json_mapping::parse_dyn_from_str(&descriptor, &json)?;
     let output_bytes = msg.write_to_bytes_dyn()?;
-    return Ok(output_bytes)
+    return Ok(output_bytes);
 }
 
-fn decode_internal(protofile: &String, prototype: &String, indata: &Vec<u8>, include_path: &Option<String>) -> Result<String, Box<dyn std::error::Error>> {
+fn decode_internal(
+    protofile: &String,
+    prototype: &String,
+    indata: &Vec<u8>,
+    include_path: &Option<String>,
+) -> Result<String, Box<dyn std::error::Error>> {
     let descriptor = get_message_descriptor(protofile, prototype, include_path)?;
     let pres = descriptor.parse_from_bytes(indata.as_ref())?;
     let jres = protobuf_json_mapping::print_to_string(pres.as_ref())?;
-    return Ok(jres)
+    return Ok(jres);
 }
 
 /// encode data specified in json input file into protobuf binary format
-fn encode(protofile: &String, prototype: &String, jsonfile: &String, format: &Option<FileFormat>, outfile: &Option<String>, include_path: &Option<String>) {
+fn encode(
+    protofile: &String,
+    prototype: &String,
+    jsonfile: &String,
+    format: &Option<FileFormat>,
+    outfile: &Option<String>,
+    include_path: &Option<String>,
+) {
     let output_bytes = encode_internal(protofile, prototype, jsonfile, include_path).unwrap();
 
     if format.as_ref().is_some_and(|f| *f == FileFormat::Binary) {
         // do not send binary to stdout
     } else {
         let output_convereted = convert_output(&output_bytes, format).unwrap();
-        println!("{}", std::str::from_utf8(output_convereted.as_ref()).unwrap());
+        println!(
+            "{}",
+            std::str::from_utf8(output_convereted.as_ref()).unwrap()
+        );
     }
 
     if outfile.is_some() {
@@ -156,7 +190,14 @@ fn encode(protofile: &String, prototype: &String, jsonfile: &String, format: &Op
 }
 
 /// decode protobuf binary data and present them in json format
-fn decode(protofile: &String, prototype: &String, data: &String, format: &Option<FileFormat>, out_file: &Option<String>, include_path: &Option<String>) {
+fn decode(
+    protofile: &String,
+    prototype: &String,
+    data: &String,
+    format: &Option<FileFormat>,
+    out_file: &Option<String>,
+    include_path: &Option<String>,
+) {
     let dataraw = convert_input(data, format).unwrap();
 
     let jres = decode_internal(protofile, prototype, &dataraw, include_path);
@@ -168,7 +209,6 @@ fn decode(protofile: &String, prototype: &String, data: &String, format: &Option
     }
 }
 
-
 #[derive(Parser)]
 #[command()]
 struct Cli {
@@ -178,7 +218,6 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-
     Encode {
         /// Protobuf directory include path
         #[clap(long, short = 'i')]
@@ -197,7 +236,7 @@ enum Commands {
         /// name of protobuf type
         prototype: String,
         /// name of file with json data
-        json: String
+        json: String,
     },
     Decode {
         /// Protobuf directory include path
@@ -217,7 +256,7 @@ enum Commands {
         /// name of protobuf type
         prototype: String,
         /// protobuf data. name of file when starts with @
-        protobuf: String
+        protobuf: String,
     },
 }
 #[derive(Clone, Debug, ValueEnum, PartialEq)]
@@ -236,17 +275,31 @@ fn main() {
             output_file,
             protofile,
             prototype,
-            json } => {
-                encode(protofile, prototype, json, file_format, output_file, include_path);
-            },
+            json,
+        } => {
+            encode(
+                protofile,
+                prototype,
+                json,
+                file_format,
+                output_file,
+                include_path,
+            );
+        }
         Commands::Decode {
             include_path,
             file_format,
             output_file,
             protofile,
             prototype,
-            protobuf } => {
-                decode(protofile, prototype, protobuf, file_format, output_file, include_path)
-            }
+            protobuf,
+        } => decode(
+            protofile,
+            prototype,
+            protobuf,
+            file_format,
+            output_file,
+            include_path,
+        ),
     }
 }
