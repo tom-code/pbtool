@@ -46,13 +46,13 @@ fn convert_output(i: &Vec<u8>, format: &Option<FileFormat>) -> Result<Vec<u8>, P
 }
 
 /// Convert input protobuf binary stream according format specified by FileFormat parameter
-fn convert_input(i: &String, format: &Option<FileFormat>) -> Result<Vec<u8>, PError>  {
+fn convert_input(i: &String, format: &Option<FileFormat>) -> Result<Vec<u8>, Box<dyn std::error::Error>>  {
     if i.is_empty() {
-        return Err(PError::Str("nothing to decode".to_string()))
+        return Err(Box::new(PError::Str("nothing to decode".to_string())))
     }
 
     let input = if i.starts_with("@") {
-        fs::read(&i[1..]).unwrap()
+        fs::read(&i[1..])?
     } else {
         i.as_bytes().to_vec()
     };
@@ -69,20 +69,18 @@ fn convert_input(i: &String, format: &Option<FileFormat>) -> Result<Vec<u8>, PEr
             let mut buffer =  vec![0u8; input.len()/2];
             match binascii::hex2bin(&input, buffer.as_mut()) {
                 Ok(res) => return Ok(res.to_vec()),
-                Err(err) => return Err(PError::Str(format!("hex decode failed {:?}", err)))
+                Err(err) => return Err(Box::new(PError::Str(format!("hex decode failed {:?}", err))))
             }
         }
         FileFormat::Base64 => {
             let mut buffer =  vec![0u8; input.len()];
             match binascii::b64decode(&input, buffer.as_mut()) {
                 Ok(res) => return Ok(res.to_vec()),
-                Err(err) => return Err(PError::Str(format!("b64 decode failed {:?}", err)))
+                Err(err) => return Err(Box::new(PError::Str(format!("b64 decode failed {:?}", err))))
             }
         }
     }
 }
-
-
 
 /// Get protobuf messageDescriptor from protobuf file for specified probuf message
 fn get_message_descriptor(protofile: &String, prototype: &String, include_path: &Option<String>) -> Result<MessageDescriptor, Box<dyn std::error::Error>> {
