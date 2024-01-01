@@ -9,5 +9,6 @@ edition = "2021"
 protobuf = "3.3.0"
 protobuf-parse = "3.3.0"
 protobuf-json-mapping = "3.3.0"
+anyhow = "1.0.66"
 clap = {version="4.4.12", features=["derive"]}
 binascii = "0.1.4"
